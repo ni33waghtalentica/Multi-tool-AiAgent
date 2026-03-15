@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agent Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/viz.js@2.1.2/viz.js"></script>
+  <script src="https://unpkg.com/viz.js@2.1.2/full.render.js"></script>
+  <style>
+    :root {
+      --bg-primary: #0f1117;
+      --bg-secondary: #181c24;
+      --bg-tertiary: #1e232d;
+      --border: #2d333b;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --accent: #58a6ff;
+      --accent-dim: #388bfd66;
+      --success: #3fb950;
+      --surface: #21262d;
+      --radius: 10px;
+      --radius-sm: 6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .header {
+      height: 56px;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-secondary);
+    }
+    .header h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .agent-select {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      min-width: 180px;
+      cursor: pointer;
+    }
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn:hover { filter: brightness(1.1); }
+    .btn.secondary {
+      background: var(--surface);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+    .main {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+    .chat-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      min-width: 320px;
+    }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .msg {
+      max-width: 85%;
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+    }
+    .msg.agent {
+      align-self: flex-start;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+    .msg .tool-call {
+      font-size: 0.8rem;
+      color: var(--success);
+      margin-top: 6px;
+    }
+    .chat-input-row {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .chat-input-row input {
+      flex: 1;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 12px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 0.95rem;
+      font-family: inherit;
+    }
+    .chat-input-row input::placeholder { color: var(--text-secondary); }
+    .chat-input-row input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .event-panel {
+      width: 420px;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border);
+    }
+    .event-panel .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      padding: 0 12px;
+    }
+    .event-panel .tab {
+      padding: 12px 16px;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+    .event-panel .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .event-panel .content {
+      flex: 1;
+      overflow: auto;
+      padding: 16px;
+    }
+    .event-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .event-item {
+      padding: 10px 12px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .event-item:hover { border-color: var(--accent); }
+    .event-item.selected { border-color: var(--accent); background: var(--accent-dim); }
+    .event-item .author { color: var(--accent); font-weight: 500; }
+    .diagram-container {
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      overflow: auto;
+      min-height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .diagram-container svg { max-width: 100%; height: auto; }
+    .event-detail {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: var(--text-secondary);
+      max-height: 300px;
+    }
+    .empty-state {
+      color: var(--text-secondary);
+      text-align: center;
+      padding: 40px 20px;
+      font-size: 0.9rem;
+    }
+    .session-info {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      padding: 8px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .banner-error {
+      background: #5a1e1e;
+      border: 1px solid #c93030;
+      color: #f8c8c8;
+      padding: 10px 20px;
+      font-size: 0.9rem;
+      text-align: center;
+      display: none;
+    }
+    .banner-error.visible { display: block; }
+    .agent-type {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      max-width: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .msg-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      margin: 10px 0;
+    }
+    .msg-table th,
+    .msg-table td {
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      text-align: left;
+    }
+    .msg-table th {
+      background: var(--bg-tertiary);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .msg-table td { background: var(--bg-secondary); }
+    .msg-table tr:hover td { background: var(--bg-tertiary); }
+  </style>
+</head>
+<body>
+  <div class="banner-error" id="bannerError"></div>
+  <header class="header">
+    <h1>Agent Studio</h1>
+    <select id="agentSelect" class="agent-select" aria-label="Select agent">
+      <option value="">Loading agents…</option>
+    </select>
+    <span class="agent-type" id="agentType"></span>
+    <button type="button" class="btn secondary" id="newSessionBtn">New session</button>
+    <span class="session-info" id="sessionInfo">No session</span>
+  </header>
+  <div class="main">
+    <div class="chat-panel">
+      <div class="chat-messages" id="chatMessages">
+        <div class="empty-state">Select an agent and start a session. Send a message to see events and the flow diagram.</div>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="messageInput" placeholder="Type a message…" aria-label="Message" />
+        <button type="button" class="btn" id="sendBtn">Send</button>
+      </div>
+    </div>
+    <div class="event-panel">
+      <div class="tabs">
+        <div class="tab active" data-tab="diagram">Event diagram</div>
+        <div class="tab" data-tab="detail">Event detail</div>
+      </div>
+      <div class="content">
+        <div id="diagramTab" class="tab-content">
+          <div class="diagram-container" id="diagramContainer">
+            <span class="empty-state">Run a message to see the event flow diagram.</span>
+          </div>
+          <div style="margin-top:12px; font-size:0.85rem; color: var(--text-secondary);">Events</div>
+          <div class="event-list" id="eventList"></div>
+        </div>
+        <div id="detailTab" class="tab-content" style="display:none;">
+          <div class="event-detail" id="eventDetail">Select an event.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const API_BASE = (() => {
+      const u = new URL(location.href);
+      if (u.port === '3000') return '';
+      if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return 'http://' + u.hostname + ':8000';
+      return '';
+    })();
+    const USER_ID = 'user';
+    let appName = '';
+    let sessionId = null;
+    let events = [];
+    let selectedEventId = null;
+
+    const $ = id => document.getElementById(id);
+    const agentSelect = $('agentSelect');
+    const agentType = $('agentType');
+    const newSessionBtn = $('newSessionBtn');
+    const sessionInfo = $('sessionInfo');
+    const chatMessages = $('chatMessages');
+    const messageInput = $('messageInput');
+    const sendBtn = $('sendBtn');
+    const diagramContainer = $('diagramContainer');
+    const eventList = $('eventList');
+    const eventDetail = $('eventDetail');
+    const bannerError = $('bannerError');
+
+    let appsList = [];
+
+    function showBanner(msg) {
+      bannerError.textContent = msg;
+      bannerError.classList.add('visible');
+    }
+    function hideBanner() {
+      bannerError.classList.remove('visible');
+    }
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    /** Convert markdown table lines to HTML table; escape other content. */
+    function textToHtmlWithTables(text) {
+      if (!text || typeof text !== 'string') return '';
+      const lines = text.split('\n');
+      const segments = [];
+      let i = 0;
+      while (i < lines.length) {
+        const line = lines[i];
+        const isTableRow = /^\s*\|.+\|\s*$/.test(line);
+        if (isTableRow) {
+          const tableLines = [];
+          while (i < lines.length && /^\s*\|.+\|\s*$/.test(lines[i])) {
+            tableLines.push(lines[i]);
+            i++;
+          }
+          const tableHtml = parseTableLines(tableLines);
+          if (tableHtml) segments.push(tableHtml);
+          else segments.push(escapeHtml(tableLines.join('\n')) + '<br>');
+        } else {
+          segments.push(escapeHtml(line) + '<br>');
+          i++;
+        }
+      }
+      return segments.join('');
+    }
+
+    function parseTableLines(tableLines) {
+      const rows = tableLines.map(l => l.split('|').map(c => c.trim()).filter(c => c !== ''));
+      if (rows.length === 0) return null;
+      const isSeparator = (cells) => cells.length > 0 && cells.every(c => /^:?-+:?$/.test(c));
+      let header = rows[0];
+      let bodyStart = 1;
+      if (rows.length > 1 && isSeparator(rows[1])) bodyStart = 2;
+      const body = rows.slice(bodyStart);
+      let html = '<table class="msg-table"><thead><tr>';
+      header.forEach(c => { html += '<th>' + escapeHtml(c) + '</th>'; });
+      html += '</tr></thead><tbody>';
+      body.forEach(r => {
+        html += '<tr>';
+        r.forEach(c => { html += '<td>' + escapeHtml(c) + '</td>'; });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      return html;
+    }
+
+    async function api(path, options = {}) {
+      const url = API_BASE + path;
+      let res;
+      try {
+        res = await fetch(url, { ...options, headers: { 'Content-Type': 'application/json', ...options.headers } });
+      } catch (e) {
+        const msg = e.message || String(e);
+        if (msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('network')) {
+          throw new Error('Cannot reach the API. Start the server with ./run_web_ui.sh and open this page from the same host (e.g. http://localhost:3000 or http://127.0.0.1:3000).');
+        }
+        throw e;
+      }
+      if (!res.ok) {
+        const text = await res.text();
+        if (res.status === 503 && text.includes('unreachable')) {
+          throw new Error('Backend API is not running. Start it with: ./run_web_ui.sh');
+        }
+        if (res.status === 429 || (text && (text.includes('429') || text.includes('RESOURCE_EXHAUSTED') || text.includes('quota')))) {
+          throw new Error('Gemini API quota exceeded. Wait a minute or check your plan: https://ai.google.dev/gemini-api/docs/rate-limits');
+        }
+        throw new Error(text || res.statusText);
+      }
+      const text = await res.text();
+      return text ? JSON.parse(text) : null;
+    }
+
+    async function loadApps() {
+      let apps = [];
+      try {
+        const data = await api('/list-apps?detailed=true');
+        if (Array.isArray(data)) {
+          apps = data.map(name => ({ name, description: null }));
+        } else if (data && Array.isArray(data.apps)) {
+          apps = data.apps.map(a => ({ name: a.name || a.rootAgentName, description: a.description || null }));
+        }
+      } catch (_) {
+        try {
+          const data = await api('/list-apps');
+          if (Array.isArray(data)) {
+            apps = data.map(name => ({ name, description: null }));
+          } else if (data && Array.isArray(data.apps)) {
+            apps = data.apps.map(a => ({ name: a.name, description: a.description || null }));
+          }
+        } catch (e) {
+          console.error('list-apps failed', e);
+          hideBanner();
+          showBanner('Cannot reach the API. Run ./run_web_ui.sh from the project root, then refresh this page.');
+          agentSelect.innerHTML = '<option value="">API unreachable — run ./run_web_ui.sh</option>';
+          throw new Error('API unreachable');
+        }
+      }
+      hideBanner();
+      appsList = apps;
+      agentSelect.innerHTML = apps.length
+        ? apps.map(a => `<option value="${escapeHtml(a.name)}">${escapeHtml(a.name)}</option>`).join('')
+        : '<option value="">No agents found</option>';
+      if (apps.length) {
+        appName = apps[0].name;
+        setAgentType(apps[0].description);
+      }
+      agentSelect.onchange = () => {
+        appName = agentSelect.value;
+        const app = appsList.find(a => a.name === appName);
+        setAgentType(app ? app.description : null);
+        newSession();
+      };
+    }
+
+    function setAgentType(desc) {
+      agentType.textContent = desc ? desc : '';
+      agentType.title = desc || '';
+    }
+
+    async function newSession() {
+      if (!appName) return;
+      const session = await api(`/apps/${appName}/users/${USER_ID}/sessions`, { method: 'POST', body: '{}' });
+      sessionId = session?.id ?? session?.session_id ?? null;
+      sessionInfo.textContent = sessionId ? `Session: ${sessionId.slice(0, 8)}…` : 'No session';
+      events = [];
+      selectedEventId = null;
+      chatMessages.innerHTML = '<div class="empty-state">Session started. Send a message.</div>';
+      renderEventList();
+      renderDiagram('');
+      eventDetail.textContent = 'Select an event.';
+    }
+
+    newSessionBtn.onclick = newSession;
+
+    async function sendMessage() {
+      const text = (messageInput.value || '').trim();
+      if (!text || !appName || !sessionId) return;
+      messageInput.value = '';
+      appendMessage('user', text);
+      chatMessages.querySelector('.empty-state')?.remove();
+      sendBtn.disabled = true;
+      try {
+        const body = {
+          app_name: appName,
+          user_id: USER_ID,
+          session_id: sessionId,
+          new_message: { role: 'user', parts: [{ text }] },
+          streaming: false
+        };
+        events = await api('/run', { method: 'POST', body: JSON.stringify(body) }) || [];
+        events.forEach(ev => {
+          const parts = ev.content?.parts || ev.content?.Parts || [];
+          let shown = false;
+          for (const part of parts) {
+            const text = part?.text ?? part?.Text;
+            if (text) { appendMessage(ev.author || 'agent', text); shown = true; break; }
+            const fc = part?.functionCall || part?.function_call;
+            if (fc) { appendMessage('agent', '\u26a1 ' + (fc.name || 'tool'), null, true); shown = true; }
+          }
+          if (!shown) {
+            const fcs = ev.actions?.functionCalls || ev.actions?.function_calls || [];
+            fcs.forEach(fc => appendMessage('agent', '\u26a1 ' + (fc.name || fc.function_call?.name || 'tool'), null, true));
+          }
+        });
+        renderEventList();
+        const last = events[events.length - 1];
+        if (last) selectEvent(last.id || last.invocation_id || last.invocationId || '');
+      } catch (e) {
+        let msg = e.message || String(e);
+        if (msg.includes('429') || msg.toLowerCase().includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+          msg = 'Gemini API quota exceeded. Wait a minute or check your plan: https://ai.google.dev/gemini-api/docs/rate-limits';
+        }
+        appendMessage('agent', 'Error: ' + msg);
+      }
+      sendBtn.disabled = false;
+    }
+
+    sendBtn.onclick = sendMessage;
+    messageInput.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
+
+    function appendMessage(role, text, ev = null, isTool = false) {
+      const div = document.createElement('div');
+      div.className = 'msg ' + (role === 'user' ? 'user' : 'agent');
+      if (isTool) {
+        div.innerHTML = `<span class="tool-call">${escapeHtml(text)}</span>`;
+      } else if (role === 'agent' && text && text.includes('|')) {
+        div.innerHTML = textToHtmlWithTables(text);
+      } else {
+        div.textContent = text;
+      }
+      chatMessages.appendChild(div);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function renderEventList() {
+      eventList.innerHTML = (events || []).map((e, i) => {
+        const id = (e.id || e.invocation_id || e.invocationId || String(i)).toString();
+        return `<div class="event-item ${id === selectedEventId ? 'selected' : ''}" data-id="${escapeHtml(id)}">
+          <span class="author">${escapeHtml(e.author || 'model')}</span> · Event ${i + 1}
+        </div>`;
+      }).join('');
+      eventList.querySelectorAll('.event-item').forEach(el => {
+        el.onclick = () => selectEvent(el.dataset.id);
+      });
+    }
+
+    async function selectEvent(id) {
+      selectedEventId = id;
+      renderEventList();
+      const ev = (events || []).find(e => (e.id || e.invocation_id || e.invocationId || '').toString() === id.toString());
+      eventDetail.textContent = ev ? JSON.stringify(ev, null, 2) : 'Select an event.';
+      if (!appName || !sessionId) return;
+      try {
+        const graph = await api(`/apps/${appName}/users/${USER_ID}/sessions/${sessionId}/events/${id}/graph`);
+        renderDiagram(graph?.dot_src || graph?.dotSrc || '');
+      } catch {
+        renderDiagram('');
+      }
+    }
+
+    function renderDiagram(dotSrc) {
+      diagramContainer.innerHTML = '';
+      if (!dotSrc) {
+        diagramContainer.innerHTML = '<span class="empty-state">No diagram for this event.</span>';
+        return;
+      }
+      try {
+        if (typeof Viz !== 'undefined') {
+          new Viz().renderSVGElement(dotSrc).then(svg => {
+            diagramContainer.innerHTML = '';
+            diagramContainer.appendChild(svg);
+          }).catch(() => {
+            diagramContainer.innerHTML = '<pre class="event-detail" style="max-height:200px">' + escapeHtml(dotSrc) + '</pre>';
+          });
+        } else {
+          diagramContainer.innerHTML = '<pre class="event-detail" style="max-height:200px">' + escapeHtml(dotSrc) + '</pre>';
+        }
+      } catch (e) {
+        diagramContainer.innerHTML = '<pre class="event-detail">' + escapeHtml(dotSrc) + '</pre>';
+      }
+    }
+
+    document.querySelectorAll('.event-panel .tab').forEach(tab => {
+      tab.onclick = () => {
+        document.querySelectorAll('.event-panel .tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        $('diagramTab').style.display = tab.dataset.tab === 'diagram' ? 'block' : 'none';
+        $('detailTab').style.display = tab.dataset.tab === 'detail' ? 'block' : 'none';
+      };
+    });
+
+    loadApps().then(() => { if (appsList.length) newSession(); }).catch(e => {
+      agentSelect.innerHTML = '<option value="">API unreachable — run ./run_web_ui.sh</option>';
+      console.error(e);
+    });
+  </script>
+</body>
+</html>
